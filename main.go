@@ -91,16 +91,20 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to set location: %s\n", err)
 		os.Exit(1)
 	}
+
+	tz, _ := time.Now().Zone()
+	fmt.Printf("TZ: %s\n", tz)
 	current, err := client.CurrentWeather(ctx, location, &omgo.Options{
-		Timezone: "Europe/Berlin",
+		Timezone: tz,
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to get current weather: %s\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Weather conditions in %s: %s with a temperature of %.1f°C\n", address.City,
-		WMOWeatherCodes[current.WeatherCode], current.Temperature)
+	fmt.Printf("Weather conditions in %s: %s with a temperature of %.1f°C\nUpdated at: %s\n", address.City,
+		WMOWeatherCodes[current.WeatherCode], current.Temperature,
+		current.Time.Format("02. Jan. 2006 15:04"))
 }
 
 func getLocation() (float64, float64, error) {
