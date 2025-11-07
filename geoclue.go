@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	nominatim "github.com/doppiogancio/go-nominatim"
 	"github.com/godbus/dbus/v5"
 	"github.com/hectormalot/omgo"
 	"github.com/maltegrosse/go-geoclue2"
+	"github.com/nathan-osman/go-sunrise"
 )
 
 const (
@@ -148,6 +150,15 @@ func (s *Service) updateLocation(latitude, longitude float64) error {
 		slog.Any("address", s.address),
 		slog.Any("location", s.location),
 	)
+
+	now := time.Now()
+	sunriseTime, sunsetTime := sunrise.SunriseSunset(latitude, longitude, now.Year(), now.Month(), now.Day())
+	s.sunriseTime = sunriseTime
+	s.sunsetTime = sunsetTime
+	s.isDayTime = false
+	if now.After(sunriseTime) && now.Before(sunsetTime) {
+		s.isDayTime = true
+	}
 
 	return nil
 }

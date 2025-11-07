@@ -8,6 +8,7 @@ require (
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/hectormalot/omgo v0.1.3
 	github.com/maltegrosse/go-geoclue2 v0.1.1
+	github.com/nathan-osman/go-sunrise v1.1.0
 )
 
 require (

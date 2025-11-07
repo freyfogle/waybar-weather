@@ -86,4 +86,5 @@ func (s *Service) fetchWeather(ctx context.Context) {
 		return
 	}
 	s.weather = current
+	s.weatherIsSet = true
 }

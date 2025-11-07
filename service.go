@@ -33,9 +33,13 @@ type Service struct {
 	locationLock sync.RWMutex
 	address      *shared.Address
 	location     omgo.Location
+	isDayTime    bool
+	sunriseTime  time.Time
+	sunsetTime   time.Time
 
-	weatherLock sync.RWMutex
-	weather     omgo.CurrentWeather
+	weatherLock  sync.RWMutex
+	weatherIsSet bool
+	weather      omgo.CurrentWeather
 }
 
 func New() (*Service, error) {
@@ -112,14 +116,24 @@ func (s *Service) printWeather(context.Context) {
 	s.weatherLock.RLock()
 	defer s.weatherLock.RUnlock()
 
-	if s.address == nil {
+	if s.address == nil || !s.weatherIsSet {
 		return
 	}
 
+	dayOrNight := "day"
+	if !s.isDayTime {
+		dayOrNight = "night"
+	}
+
 	output := outputData{
-		Text: fmt.Sprintf("%s, %s %.1f°C", s.address.City, WMOWeatherIcons[s.weather.WeatherCode]["day"],
+		Text: fmt.Sprintf("%s: %s %.1f°C",
+			s.address.City,
+			WMOWeatherIcons[s.weather.WeatherCode][dayOrNight],
 			s.weather.Temperature),
-		Tooltip: fmt.Sprintf("Location: %s, %s\nLast update: %s", s.address.City, s.address.Country,
+		Tooltip: fmt.Sprintf("Location: %s, %s\n🌅 %s\n🌇 %s\nLast update: %s",
+			s.address.City, s.address.Country,
+			s.sunriseTime.Format("15:04"),
+			s.sunsetTime.Format("15:04"),
 			s.weather.Time.Format("2006-01-02 15:04")),
 		Class: OutputClass,
 	}
