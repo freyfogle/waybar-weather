@@ -17,7 +17,7 @@ import (
 	"syscall"
 )
 
-const VERSION = "0.1.1"
+const VERSION = "0.1.2"
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGKILL,
