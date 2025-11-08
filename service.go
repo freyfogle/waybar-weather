@@ -39,6 +39,7 @@ type DisplayData struct {
 	Latitude           float64
 	Longitude          float64
 	Elevation          float64
+	Address            shared.Address
 	UpdateTime         time.Time
 	WeatherDateForTime time.Time
 	Temperature        float64
@@ -154,7 +155,7 @@ func (s *Service) printWeather(context.Context) {
 		),
 		Tooltip: fmt.Sprintf("Condition: %s\nLocation: %s, %s\nSunrise: %s\nSunset: %s\nWeather data for: %s\nWeather data updated at: %s",
 			displayData.Condition,
-			s.address.City, s.address.Country,
+			displayData.Address.City, displayData.Address.Country,
 			displayData.SunriseTime.Format(TimeFormat),
 			displayData.SunsetTime.Format(TimeFormat),
 			displayData.WeatherDateForTime.Format(TimeFormat),
@@ -183,9 +184,11 @@ func (s *Service) fillDisplayData(target *DisplayData) {
 	target.Latitude = s.weather.Latitude
 	target.Longitude = s.weather.Longitude
 	target.Elevation = s.weather.Elevation
+	if s.address != nil {
+		target.Address = *s.address
+	}
 
-	// Sunrise and sunset times
-
+	// Fill weather data
 	now := time.Now()
 	switch s.config.WeatherMode {
 	case "current":
@@ -206,7 +209,8 @@ func (s *Service) fillDisplayData(target *DisplayData) {
 		target.Icon = WMOWeatherIcons[target.WeatherCode][target.IsDaytime]
 		target.Condition = WMOWeatherCodes[target.WeatherCode]
 	case "forecast":
-		fcastTime := now.Add(time.Duration(s.config.ForecastHours) * time.Hour).Truncate(time.Hour)
+		fcastHours := time.Duration(s.config.ForecastHours) * time.Hour //nolint:gosec
+		fcastTime := now.Add(fcastHours).Truncate(time.Hour)
 		idx := -1
 		for i, t := range s.weather.HourlyTimes {
 			if t.Equal(fcastTime) {
