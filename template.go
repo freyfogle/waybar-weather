@@ -57,10 +57,15 @@ func NewTemplate(conf *config) (*Templates, error) {
 
 func templateFuncMap() template.FuncMap {
 	return template.FuncMap{
-		"timeFormat": timeFormat,
+		"timeFormat":  timeFormat,
+		"floatFormat": floatFormat,
 	}
 }
 
-func timeFormat(t time.Time, fmt string) string {
-	return t.Format(fmt)
+func timeFormat(val time.Time, fmt string) string {
+	return val.Format(fmt)
+}
+
+func floatFormat(val float64, precision int) string {
+	return fmt.Sprintf("%.*f", precision, val)
 }
