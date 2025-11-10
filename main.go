@@ -18,6 +18,7 @@ import (
 
 	"app/internal/config"
 	"app/internal/logger"
+	"app/internal/service"
 )
 
 var (
@@ -55,16 +56,16 @@ func main() {
 	log.Debug("weather mode", slog.String("mode", conf.WeatherMode))
 
 	// Initialize the service
-	service, err := New(conf, log)
+	serv, err := service.New(conf, log)
 	if err != nil {
 		log.Error("failed to initialize waybar-weather service", logger.Err(err))
 		os.Exit(1)
 	}
 
 	// Start the service loop
-	log.Info("starting waybar-weather service", slog.String("version", version),
+	log.Info("starting waybar-weather service", slog.String("VERSION", version),
 		slog.String("commit", commit), slog.String("date", date))
-	if err = service.Run(ctx); err != nil {
+	if err = serv.Run(ctx); err != nil {
 		log.Error("failed to start waybar-weather service", logger.Err(err))
 	}
 	log.Info("shutting down waybar-weather service")

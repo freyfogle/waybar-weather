@@ -43,6 +43,10 @@ type Config struct {
 		Text    string `fig:"text"`
 		Tooltip string `fig:"tooltip"`
 	} `fig:"templates"`
+
+	GeoLocation struct {
+		File string `fig:"file"`
+	} `fig:"geolocation"`
 }
 
 func NewFromFile(path, file string) (*Config, error) {
@@ -85,6 +89,10 @@ func (c *Config) Validate() error {
 	}
 	if c.Templates.Tooltip == "" {
 		c.Templates.Tooltip = DefaultTooltipTpl
+	}
+	if c.GeoLocation.File == "" {
+		home, _ := os.UserHomeDir()
+		c.GeoLocation.File = filepath.Join(home, ".config", "waybar-weather", "geolocation")
 	}
 
 	return nil

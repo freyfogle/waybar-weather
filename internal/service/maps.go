@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
-package main
+package service
 
-// moonPhases is a map where moon phase names are keys and their corresponding emoji representations are values.
-var moonPhases = map[string]string{
+// MoonPhases is a map where moon phase names are keys and their corresponding emoji representations are values.
+var MoonPhases = map[string]string{
 	"New Moon":        "🌑",
 	"Waxing Crescent": "🌒",
 	"First Quarter":   "🌓",
@@ -48,8 +48,8 @@ var WMOWeatherCodes = map[float64]string{
 	99: "Thunderstorm with heavy hail",
 }
 
-// wmoWeatherIcons maps WMO weather codes to single emoji icons for day (1) and night (0)
-var wmoWeatherIcons = map[float64]map[bool]string{
+// WMOWeatherIcons maps WMO weather codes to single emoji icons for day (1) and night (0)
+var WMOWeatherIcons = map[float64]map[bool]string{
 	0: {
 		true:  "☀️", // Clear sky (day)
 		false: "🌙",

@@ -35,6 +35,7 @@ type GeoBus struct {
 type Result struct {
 	Key            string
 	Lat, Lon       float64
+	Alt            float64
 	AccuracyMeters float64
 	Confidence     float64
 	Source         string

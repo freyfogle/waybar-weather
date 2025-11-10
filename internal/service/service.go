@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-package main
+package service
 
 import (
 	"bytes"
@@ -23,7 +23,12 @@ import (
 
 	"app/internal/config"
 	"app/internal/geobus"
+	"app/internal/geobus/provider/geoip"
+	"app/internal/geobus/provider/geolocation_file"
+	"app/internal/geobus/provider/ichnaea"
+	"app/internal/http"
 	"app/internal/logger"
+	"app/internal/template"
 )
 
 const (
@@ -40,11 +45,11 @@ type outputData struct {
 type Service struct {
 	config       *config.Config
 	geobus       *geobus.GeoBus
-	orchestrator *geobus.Orchestrator
 	logger       *logger.Logger
 	omclient     omgo.Client
+	orchestrator *geobus.Orchestrator
 	scheduler    gocron.Scheduler
-	templates    *Templates
+	templates    *template.Templates
 
 	locationLock sync.RWMutex
 	address      *shared.Address
@@ -66,23 +71,29 @@ func New(conf *config.Config, log *logger.Logger) (*Service, error) {
 		return nil, fmt.Errorf("failed to create Open-Meteo client: %w", err)
 	}
 
-	tpls, err := NewTemplate(conf)
+	tpls, err := template.NewTemplate(conf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse templates: %w", err)
 	}
 
+	// HTTP client for API requests
+	httpClient := http.New(log)
+
 	// Geolocation bus and orchestrator
 	bus := geobus.New(log)
-	orch := bus.NewOrchestrator([]geobus.Provider{
-		geobus.NewGeolocationFileProvider(),
-	})
+	provider := []geobus.Provider{
+		geoip.NewGeolocationGeoIPProvider(httpClient),
+		ichnaea.NewGeolocationICHNAEAProvider(httpClient),
+		geolocation_file.NewGeolocationFileProvider(conf.GeoLocation.File),
+	}
+	orch := bus.NewOrchestrator(provider)
 
 	service := &Service{
 		config:       conf,
-		logger:       log,
 		geobus:       bus,
-		orchestrator: orch,
+		logger:       log,
 		omclient:     omclient,
+		orchestrator: orch,
 		scheduler:    scheduler,
 		templates:    tpls,
 	}
@@ -91,25 +102,15 @@ func New(conf *config.Config, log *logger.Logger) (*Service, error) {
 
 func (s *Service) Run(ctx context.Context) error {
 	// Start scheduled jobs
-	_, err := s.scheduler.NewJob(gocron.DurationJob(s.config.Intervals.Output),
-		gocron.NewTask(s.printWeather),
-		gocron.WithContext(ctx),
-		gocron.WithSingletonMode(gocron.LimitModeReschedule),
-		gocron.WithName("weatherdata_output_job"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create weather data output job: %w", err)
+	if err := s.createScheduledJob(ctx, s.config.Intervals.Output, s.printWeather,
+		"weatherdata_output_job"); err != nil {
+		return err
+	}
+	if err := s.createScheduledJob(ctx, s.config.Intervals.WeatherUpdate, s.fetchWeather,
+		"weather_update_job"); err != nil {
+		return err
 	}
 
-	_, err = s.scheduler.NewJob(gocron.DurationJob(s.config.Intervals.WeatherUpdate),
-		gocron.NewTask(s.fetchWeather),
-		gocron.WithContext(ctx),
-		gocron.WithSingletonMode(gocron.LimitModeReschedule),
-		gocron.WithName("weather_update_job"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create weather update job: %w", err)
-	}
 	s.scheduler.Start()
 
 	// Subscribe to geolocation updates from the geobus
@@ -125,14 +126,28 @@ func (s *Service) Run(ctx context.Context) error {
 	return s.scheduler.Shutdown()
 }
 
+func (s *Service) createScheduledJob(ctx context.Context, interval time.Duration, task func(context.Context),
+	jobName string) error {
+	_, err := s.scheduler.NewJob(
+		gocron.DurationJob(interval),
+		gocron.NewTask(task),
+		gocron.WithContext(ctx),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+		gocron.WithName(jobName),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create %s: %w", jobName, err)
+	}
+	return nil
+}
+
 // printWeather outputs the current weather data to stdout if available and renders it using predefined templates.
 func (s *Service) printWeather(context.Context) {
 	if !s.weatherIsSet {
 		return
 	}
-	s.logger.Debug("printing weather data")
 
-	displayData := new(DisplayData)
+	displayData := new(template.DisplayData)
 	s.fillDisplayData(displayData)
 
 	textBuf := bytes.NewBuffer(nil)
@@ -160,7 +175,7 @@ func (s *Service) printWeather(context.Context) {
 // fillDisplayData populates the provided DisplayData object with details based on current or
 // forecasted weather information. It locks relevant data structures to ensure safe concurrent
 // access and conditionally fills fields based on the mode.
-func (s *Service) fillDisplayData(target *DisplayData) {
+func (s *Service) fillDisplayData(target *template.DisplayData) {
 	s.locationLock.RLock()
 	defer s.locationLock.RUnlock()
 	s.weatherLock.RLock()
@@ -168,6 +183,7 @@ func (s *Service) fillDisplayData(target *DisplayData) {
 
 	// We need valid weather data to fill the display data
 	if s.weather == nil {
+		s.logger.Debug("no weather data available yet, geo location might not have returned a location yet")
 		return
 	}
 
@@ -182,7 +198,7 @@ func (s *Service) fillDisplayData(target *DisplayData) {
 	// Moon phase
 	m := moonphase.New(time.Now())
 	target.Moonphase = m.PhaseName()
-	target.MoonphaseIcon = moonPhases[target.Moonphase]
+	target.MoonphaseIcon = MoonPhases[target.Moonphase]
 
 	// Fill weather data
 	now := time.Now()
@@ -202,7 +218,7 @@ func (s *Service) fillDisplayData(target *DisplayData) {
 		target.WindSpeed = s.weather.CurrentWeather.WindSpeed
 		target.TempUnit = s.weather.HourlyUnits["temperature_2m"]
 		target.WeatherDateForTime = s.weather.CurrentWeather.Time.Time
-		target.ConditionIcon = wmoWeatherIcons[target.WeatherCode][target.IsDaytime]
+		target.ConditionIcon = WMOWeatherIcons[target.WeatherCode][target.IsDaytime]
 		target.Condition = WMOWeatherCodes[target.WeatherCode]
 	case "forecast":
 		fcastHours := time.Duration(s.config.ForecastHours) * time.Hour //nolint:gosec
@@ -232,7 +248,7 @@ func (s *Service) fillDisplayData(target *DisplayData) {
 		target.WindSpeed = s.weather.HourlyMetrics["wind_speed_10m"][idx]
 		target.TempUnit = s.weather.HourlyUnits["temperature_2m"]
 		target.WeatherDateForTime = fcastTime
-		target.ConditionIcon = wmoWeatherIcons[target.WeatherCode][target.IsDaytime]
+		target.ConditionIcon = WMOWeatherIcons[target.WeatherCode][target.IsDaytime]
 		target.Condition = WMOWeatherCodes[target.WeatherCode]
 	}
 }
@@ -259,10 +275,8 @@ func (s *Service) updateLocation(ctx context.Context, latitude, longitude float6
 	s.address = address
 	s.location = location
 	s.locationLock.Unlock()
-	s.logger.Debug("geo location successfully updated",
-		slog.Any("address", s.address),
-		slog.Any("location", s.location),
-	)
+	s.logger.Debug("address successfully resolved", slog.Any("address", s.address),
+		slog.Any("location", s.location))
 
 	s.fetchWeather(ctx)
 	s.printWeather(ctx)
