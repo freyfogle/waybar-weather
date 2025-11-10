@@ -2,12 +2,14 @@
 //
 // SPDX-License-Identifier: MIT
 
-package main
+package template
 
 import (
 	"fmt"
 	"text/template"
 	"time"
+
+	"github.com/wneessen/waybar-weather/internal/config"
 
 	"github.com/doppiogancio/go-nominatim/shared"
 )
@@ -38,7 +40,7 @@ type Templates struct {
 	Tooltip *template.Template
 }
 
-func NewTemplate(conf *config) (*Templates, error) {
+func NewTemplate(conf *config.Config) (*Templates, error) {
 	tpls := new(Templates)
 	tpl, err := template.New("text").Funcs(templateFuncMap()).Parse(conf.Templates.Text)
 	if err != nil {
