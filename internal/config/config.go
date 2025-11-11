@@ -19,7 +19,7 @@ const (
 	configEnv         = "WAYBARWEATHER"
 	DefaultTextTpl    = "{{.Current.ConditionIcon}} {{.Current.Temperature}}{{.TempUnit}}"
 	DefaultTooltipTpl = "{{.Address.City}}, {{.Address.Country}}\n" +
-		"{{.Current.Condition}} {{.Current.ConditionIcon}}\n" +
+		"{{.Current.Condition}}\n" +
 		"Feels like: {{.Current.ApparentTemperature}}{{.TempUnit}}\n" +
 		"Humidity: {{.Current.Humidity}}%\n" +
 		"Pressure: {{.Current.PressureMSL}} {{.PressureUnit}}\n" +
