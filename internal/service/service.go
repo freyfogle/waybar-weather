@@ -258,6 +258,7 @@ func (s *Service) fillDisplayData(target *template.DisplayData) {
 	target.Current.WindSpeed = s.weather.CurrentWeather.WindSpeed
 	target.Current.WeatherDateForTime = s.weather.CurrentWeather.Time.Time
 	target.Current.ConditionIcon = WMOWeatherIcons[target.Current.WeatherCode][target.Current.IsDaytime]
+	target.Current.ConditionIconWithSpace = template.EmojiWithSpace(target.Current.ConditionIcon)
 	target.Current.Condition = WMOWeatherCodes[target.Current.WeatherCode]
 	if nowIdx != -1 {
 		target.Current.ApparentTemperature = s.weather.HourlyMetrics["apparent_temperature"][nowIdx]
@@ -275,6 +276,7 @@ func (s *Service) fillDisplayData(target *template.DisplayData) {
 	}
 	target.Forecast.WeatherDateForTime = fcastTime
 	target.Forecast.ConditionIcon = WMOWeatherIcons[target.Forecast.WeatherCode][target.Forecast.IsDaytime]
+	target.Forecast.ConditionIconWithSpace = template.EmojiWithSpace(target.Forecast.ConditionIcon)
 	target.Forecast.Condition = WMOWeatherCodes[target.Forecast.WeatherCode]
 	if fcastIdx == -1 {
 		target.Forecast.Temperature = s.weather.HourlyMetrics["temperature_2m"][fcastIdx]

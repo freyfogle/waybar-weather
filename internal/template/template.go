@@ -6,12 +6,14 @@ package template
 
 import (
 	"fmt"
+	"strings"
 	"text/template"
 	"time"
 
 	"github.com/wneessen/waybar-weather/internal/config"
 
 	"github.com/doppiogancio/go-nominatim/shared"
+	"github.com/mattn/go-runewidth"
 )
 
 type DisplayData struct {
@@ -36,17 +38,18 @@ type DisplayData struct {
 }
 
 type WeatherData struct {
-	WeatherDateForTime  time.Time
-	Temperature         float64
-	ApparentTemperature float64
-	Humidity            float64
-	PressureMSL         float64
-	WeatherCode         float64
-	WindDirection       float64
-	WindSpeed           float64
-	ConditionIcon       string
-	Condition           string
-	IsDaytime           bool
+	WeatherDateForTime     time.Time
+	Temperature            float64
+	ApparentTemperature    float64
+	Humidity               float64
+	PressureMSL            float64
+	WeatherCode            float64
+	WindDirection          float64
+	WindSpeed              float64
+	ConditionIcon          string
+	ConditionIconWithSpace string
+	Condition              string
+	IsDaytime              bool
 }
 
 type Templates struct {
@@ -84,4 +87,9 @@ func timeFormat(val time.Time, fmt string) string {
 
 func floatFormat(val float64, precision int) string {
 	return fmt.Sprintf("%.*f", precision, val)
+}
+
+func EmojiWithSpace(emoji string) string {
+	width := runewidth.StringWidth(emoji)
+	return fmt.Sprintf("%s%s", emoji, strings.Repeat(" ", width+1))
 }
