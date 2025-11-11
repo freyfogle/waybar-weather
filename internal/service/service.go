@@ -212,6 +212,11 @@ func (s *Service) fillDisplayData(target *template.DisplayData) {
 	s.weatherLock.RLock()
 	defer s.weatherLock.RUnlock()
 
+	// The target must not be nil
+	if target == nil {
+		return
+	}
+
 	// We need valid weather data to fill the display data
 	if s.weather == nil {
 		s.logger.Debug("no weather data available yet, geo location might not have returned a location yet")
