@@ -235,6 +235,7 @@ func (s *Service) fillDisplayData(target *template.DisplayData) {
 	m := moonphase.New(time.Now())
 	target.Moonphase = m.PhaseName()
 	target.MoonphaseIcon = MoonPhases[target.Moonphase]
+	target.MoonphaseIconWithSpace = template.EmojiWithSpace(target.MoonphaseIcon)
 
 	// Generel weather data
 	now := time.Now()

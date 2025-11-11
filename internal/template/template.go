@@ -24,13 +24,14 @@ type DisplayData struct {
 	Address   shared.Address
 
 	// General weather and moon phase data
-	UpdateTime    time.Time
-	TempUnit      string
-	PressureUnit  string
-	SunsetTime    time.Time
-	SunriseTime   time.Time
-	Moonphase     string
-	MoonphaseIcon string
+	UpdateTime             time.Time
+	TempUnit               string
+	PressureUnit           string
+	SunsetTime             time.Time
+	SunriseTime            time.Time
+	Moonphase              string
+	MoonphaseIcon          string
+	MoonphaseIconWithSpace string
 
 	// Current weather and forecast data
 	Current  WeatherData
