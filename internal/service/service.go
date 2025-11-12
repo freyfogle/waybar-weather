@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/wneessen/waybar-weather/internal/config"
@@ -59,6 +61,9 @@ type Service struct {
 	weatherLock  sync.RWMutex
 	weatherIsSet bool
 	weather      *omgo.Forecast
+
+	displayAltLock sync.RWMutex
+	displayAlt     bool
 }
 
 func New(conf *config.Config, log *logger.Logger) (*Service, error) {
@@ -78,12 +83,13 @@ func New(conf *config.Config, log *logger.Logger) (*Service, error) {
 	}
 
 	service := &Service{
-		config:    conf,
-		geobus:    geobus.New(log),
-		logger:    log,
-		omclient:  omclient,
-		scheduler: scheduler,
-		templates: tpls,
+		config:     conf,
+		geobus:     geobus.New(log),
+		logger:     log,
+		omclient:   omclient,
+		scheduler:  scheduler,
+		templates:  tpls,
+		displayAlt: false,
 	}
 	return service, nil
 }
@@ -104,6 +110,9 @@ func (s *Service) Run(ctx context.Context) error {
 	if err := s.templates.Text.Execute(bytes.NewBuffer(nil), template.DisplayData{}); err != nil {
 		return fmt.Errorf("failed to render text template: %w", err)
 	}
+	if err := s.templates.AltText.Execute(bytes.NewBuffer(nil), template.DisplayData{}); err != nil {
+		return fmt.Errorf("failed to render alt text template: %w", err)
+	}
 	if err := s.templates.Tooltip.Execute(bytes.NewBuffer(nil), template.DisplayData{}); err != nil {
 		return fmt.Errorf("failed to render tooltip template: %w", err)
 	}
@@ -115,6 +124,11 @@ func (s *Service) Run(ctx context.Context) error {
 	sub, unsub := s.geobus.Subscribe(DesktopID, 32)
 	go s.processLocationUpdates(ctx, sub)
 	go s.orchestrator.Track(ctx, DesktopID)
+
+	// Set up signal handler for SIGUSR1 to toggle alt text display
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGUSR1)
+	go s.handleAltTextToggleSignal(ctx, sigChan)
 
 	// Detect sleep/wake events and update the weather
 	go s.monitorSleepResume(ctx)
@@ -181,6 +195,10 @@ func (s *Service) printWeather(context.Context) {
 		return
 	}
 
+	s.displayAltLock.RLock()
+	displayAltText := s.displayAlt
+	s.displayAltLock.RUnlock()
+
 	displayData := new(template.DisplayData)
 	s.fillDisplayData(displayData)
 
@@ -189,14 +207,28 @@ func (s *Service) printWeather(context.Context) {
 		s.logger.Error("failed to render text template", logger.Err(err))
 		return
 	}
+
+	altTextBuf := bytes.NewBuffer(nil)
+	if err := s.templates.AltText.Execute(altTextBuf, displayData); err != nil {
+		s.logger.Error("failed to render alt text template", logger.Err(err))
+		return
+	}
+
 	tooltipBuf := bytes.NewBuffer(nil)
 	if err := s.templates.Tooltip.Execute(tooltipBuf, displayData); err != nil {
 		s.logger.Error("failed to render tooltip template", logger.Err(err))
 		return
 	}
 
+	var displayText string
+	if displayAltText {
+		displayText = altTextBuf.String()
+	} else {
+		displayText = textBuf.String()
+	}
+
 	output := outputData{
-		Text:    textBuf.String(),
+		Text:    displayText,
 		Tooltip: tooltipBuf.String(),
 		Class:   OutputClass,
 	}
@@ -352,4 +384,19 @@ func (s *Service) weatherIndexByTime(atTime time.Time) int {
 		}
 	}
 	return -1
+}
+
+// handleAltTextToggleSignal toggles the module text display when a signal is received
+func (s *Service) handleAltTextToggleSignal(ctx context.Context, sigChan chan os.Signal) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sigChan:
+			s.displayAltLock.Lock()
+			s.displayAlt = !s.displayAlt
+			s.displayAltLock.Unlock()
+			s.printWeather(ctx)
+		}
+	}
 }
