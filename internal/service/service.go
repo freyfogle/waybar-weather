@@ -282,7 +282,7 @@ func (s *Service) fillDisplayData(target *template.DisplayData) {
 	target.Forecast.ConditionIcon = WMOWeatherIcons[target.Forecast.WeatherCode][target.Forecast.IsDaytime]
 	target.Forecast.ConditionIconWithSpace = template.EmojiWithSpace(target.Forecast.ConditionIcon)
 	target.Forecast.Condition = WMOWeatherCodes[target.Forecast.WeatherCode]
-	if fcastIdx == -1 {
+	if fcastIdx != -1 {
 		target.Forecast.Temperature = s.weather.HourlyMetrics["temperature_2m"][fcastIdx]
 		target.Forecast.ApparentTemperature = s.weather.HourlyMetrics["apparent_temperature"][fcastIdx]
 		target.Forecast.Humidity = s.weather.HourlyMetrics["relative_humidity_2m"][fcastIdx]
