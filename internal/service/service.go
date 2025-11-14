@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vorlif/spreak"
+
 	"github.com/wneessen/waybar-weather/internal/config"
 	"github.com/wneessen/waybar-weather/internal/geobus"
 	"github.com/wneessen/waybar-weather/internal/geobus/provider/geoapi"
@@ -53,6 +55,7 @@ type Service struct {
 	orchestrator *geobus.Orchestrator
 	scheduler    gocron.Scheduler
 	templates    *template.Templates
+	t            *spreak.Localizer
 
 	locationLock  sync.RWMutex
 	address       nominatim.Address
@@ -67,7 +70,7 @@ type Service struct {
 	displayAltText bool
 }
 
-func New(conf *config.Config, log *logger.Logger) (*Service, error) {
+func New(conf *config.Config, log *logger.Logger, t *spreak.Localizer) (*Service, error) {
 	scheduler, err := gocron.NewScheduler()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
@@ -91,6 +94,7 @@ func New(conf *config.Config, log *logger.Logger) (*Service, error) {
 		omclient:       omclient,
 		scheduler:      scheduler,
 		templates:      tpls,
+		t:              t,
 		displayAltText: false,
 	}
 	return service, nil
@@ -168,8 +172,8 @@ func (s *Service) createOrchestrator() *geobus.Orchestrator {
 		}
 	}
 	if len(provider) == 0 {
-		s.logger.Error("no geolocation providers enabled, will not be able to fetch weather data " + "" +
-			"due to missing location")
+		s.logger.Error(s.t.Get("no geolocation providers enabled, will not be able to fetch weather data " + "" +
+			"due to missing location"))
 	}
 
 	return s.geobus.NewOrchestrator(provider)
