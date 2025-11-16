@@ -54,6 +54,9 @@ func (r Result) BetterThan(other Result) bool {
 	if other.Key == "" {
 		return true
 	}
+	if r.At.Before(other.At) {
+		return false
+	}
 	if r.AccuracyMeters < other.AccuracyMeters-accuracyEpsilon {
 		return true
 	}
@@ -66,7 +69,7 @@ func (r Result) BetterThan(other Result) bool {
 	if other.Confidence > r.Confidence+confidenceEpsilon {
 		return false
 	}
-	return r.At.After(other.At)
+	return false
 }
 
 // IsExpired checks if the Result has exceeded its time-to-live (TTL) based on the current time and the timestamp.
