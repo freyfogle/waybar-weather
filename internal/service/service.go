@@ -91,7 +91,7 @@ func New(conf *config.Config, log *logger.Logger, t *spreak.Localizer) (*Service
 		config:         conf,
 		geobus:         geobus.New(log),
 		logger:         log,
-		nominatim:      nominatim.New(http.New(log), conf),
+		nominatim:      nominatim.New(http.New(log), t.Language()),
 		omclient:       omclient,
 		scheduler:      scheduler,
 		templates:      tpls,

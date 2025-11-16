@@ -55,7 +55,7 @@ func main() {
 	}
 	log = logger.NewLogger(conf.LogLevel)
 
-	t, err := i18n.New()
+	t, err := i18n.New(conf.Locale)
 	if err != nil {
 		log.Error("failed to initialize localizer", logger.Err(err))
 		os.Exit(1)

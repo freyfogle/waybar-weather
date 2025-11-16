@@ -19,11 +19,14 @@ var supportedLanguages = []language.Tag{
 //go:embed locale/*
 var locales embed.FS
 
-func New() (*spreak.Localizer, error) {
-	lang, err := locale.Detect()
-	if err != nil {
-		// Unable to detect locale, fallback to English
-		lang = language.English
+func New(loc string) (*spreak.Localizer, error) {
+	var tag language.Tag
+	var err error
+	if loc == "" {
+		tag, err = locale.Detect()
+		if err != nil {
+			tag = language.English // Unable to detect locale, fallback to English
+		}
 	}
 
 	localeFS, err := fs.Sub(locales, "locale")
@@ -34,12 +37,12 @@ func New() (*spreak.Localizer, error) {
 	bundle, err := spreak.NewBundle(
 		spreak.WithSourceLanguage(language.English),
 		spreak.WithDomainFs("", localeFS),
-		spreak.WithLanguage(lang),
+		spreak.WithLanguage(tag),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create i18n bundle: %w", err)
 	}
-	return spreak.NewLocalizer(bundle, lang), nil
+	return spreak.NewLocalizer(bundle, tag), nil
 }
 
 // languageFromEnv returns the language tag for the current locale.
