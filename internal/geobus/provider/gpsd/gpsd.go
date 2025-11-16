@@ -7,7 +7,6 @@ package gpsd
 import (
 	"context"
 	"fmt"
-	"math"
 	"net"
 	"time"
 
@@ -82,13 +81,13 @@ func (p *GeolocationGPSDProvider) LookupStream(ctx context.Context, key string) 
 					return
 				}
 
-				lat := truncate(tpv.Lat, 4)
-				lon := truncate(tpv.Lon, 4)
-				alt := truncate(tpv.Alt, 4)
-				acc := truncate((lat+lon)/2, 4)
+				lat, lon, alt, acc := geobus.Truncate(tpv.Lat, geobus.TruncPrecision),
+					geobus.Truncate(tpv.Lon, geobus.TruncPrecision),
+					geobus.Truncate(tpv.Alt, geobus.TruncPrecision),
+					geobus.Truncate((tpv.Lat+tpv.Lon)/2, geobus.TruncPrecision)
 
 				// Only emit if values changed or it's the first fix
-				if !state.HasChanged(lat, lon, 0, 0) {
+				if !state.HasChanged(lat, lon, 0, acc) {
 					return
 				}
 				state.Update(lat, lon, alt, acc)
@@ -138,9 +137,4 @@ func (p *GeolocationGPSDProvider) createResult(key string, lat, lon, acc float64
 		At:             time.Now(),
 		TTL:            p.ttl,
 	}
-}
-
-func truncate(x float64, precision int) float64 {
-	p := math.Pow(10, float64(precision))
-	return math.Trunc(x*p) / p
 }

@@ -6,6 +6,7 @@ package geobus
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -17,6 +18,15 @@ const (
 	confidenceEpsilon = 1e-9
 	initialBackoff    = time.Second
 	maxBackoff        = 30 * time.Second
+)
+
+const (
+	AccuracyCountry = 300000
+	AccuracyRegion  = 100000
+	AccuracyCity    = 15000
+	AccuracyZip     = 3000
+	AccuarcyUnknown = 1000000
+	TruncPrecision  = 4
 )
 
 // Provider defines an interface for geolocation service providers.
@@ -147,6 +157,7 @@ func (b *GeoBus) Publish(r Result) {
 	if r.At.IsZero() {
 		r.At = time.Now()
 	}
+	r.Confidence = AccuracyToConfidence(r.AccuracyMeters)
 	b.mu.Lock()
 	prev, have := b.best[r.Key]
 	if !have || prev.IsExpired() || r.BetterThan(prev) {
@@ -196,4 +207,35 @@ func nextBackoff(d time.Duration) time.Duration {
 		return maxBackoff
 	}
 	return d
+}
+
+func Truncate(x float64, precision int) float64 {
+	p := math.Pow(10, float64(precision))
+	return math.Trunc(x*p) / p
+}
+
+// AccuracyToConfidence returns a confidence value between 0.01 and 1.0
+// based on the given accuracy in meters.
+func AccuracyToConfidence(accuracy float64) float64 {
+	if accuracy <= 0 {
+		return 0
+	}
+
+	// Logistic curve parameters
+	k := 1.6
+	m := 10.5
+
+	// Logistic formula:
+	// C(A) = 0.01 + 0.99 / (1 + e^(k * (ln(A) - m)))
+	confidence := 0.01 + (0.99 / (1 + math.Exp(k*(math.Log(accuracy)-m))))
+
+	// Ensure boundary conditions (just in case)
+	if confidence > 1.0 {
+		confidence = 1.0
+	}
+	if confidence < 0.01 {
+		confidence = 0.01
+	}
+
+	return confidence
 }
