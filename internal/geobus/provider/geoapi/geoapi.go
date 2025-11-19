@@ -19,20 +19,6 @@ const (
 	LookupTimeout = time.Second * 5
 )
 
-const (
-	AccuracyCountry = 300000
-	AccuracyRegion  = 100000
-	AccuracyCity    = 15000
-	AccuracyZip     = 3000
-	AccuarcyUnknown = 1000000
-
-	ConvidenceCountry = 0.2
-	ConvidenceRegion  = 0.5
-	ConvidenceCity    = 0.7
-	ConvidenceZip     = 0.85
-	ConvidenceUnknown = 0.1
-)
-
 type GeolocationGeoAPIProvider struct {
 	name   string
 	http   *http.Client
@@ -84,16 +70,17 @@ func (p *GeolocationGeoAPIProvider) LookupStream(ctx context.Context, key string
 			default:
 			}
 
-			lat, lon, acc, con, err := p.locate(ctx)
+			lat, lon, acc, err := p.locate(ctx)
 			if err != nil {
 				time.Sleep(p.period)
 				continue
 			}
+			coord := geobus.Coordinate{Lat: lat, Lon: lon, Acc: acc}
 
 			// Only emit if values changed or it's the first read
-			if state.HasChanged(lat, lon, 0, acc) {
-				state.Update(lat, lon, 0, acc)
-				r := p.createResult(key, lat, lon, acc, con)
+			if state.HasChanged(coord) {
+				state.Update(coord)
+				r := p.createResult(key, coord)
 
 				select {
 				case <-ctx.Done():
@@ -113,55 +100,51 @@ func (p *GeolocationGeoAPIProvider) LookupStream(ctx context.Context, key string
 }
 
 // createResult composes and returns a Result using provided geolocation data and metadata.
-func (p *GeolocationGeoAPIProvider) createResult(key string, lat, lon, acc, con float64) geobus.Result {
+func (p *GeolocationGeoAPIProvider) createResult(key string, coord geobus.Coordinate) geobus.Result {
 	return geobus.Result{
 		Key:            key,
-		Lat:            lat,
-		Lon:            lon,
-		AccuracyMeters: acc,
-		Confidence:     con,
+		Lat:            coord.Lat,
+		Lon:            coord.Lon,
+		AccuracyMeters: coord.Acc,
 		Source:         p.name,
 		At:             time.Now(),
 		TTL:            p.ttl,
 	}
 }
 
-func (p *GeolocationGeoAPIProvider) locate(ctx context.Context) (lat, lon, acc, con float64, err error) {
+func (p *GeolocationGeoAPIProvider) locate(ctx context.Context) (lat, lon, acc float64, err error) {
 	ctxHttp, cancelHttp := context.WithTimeout(ctx, LookupTimeout)
 	defer cancelHttp()
 
 	result := new(APIResult)
 	if _, err = p.http.Get(ctxHttp, APIEndpoint, result, nil); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("failed to get geolocation data from API: %w", err)
+		return 0, 0, 0, fmt.Errorf("failed to get geolocation data from API: %w", err)
 	}
 
-	acc = AccuarcyUnknown
-	con = ConvidenceUnknown
+	acc = geobus.AccuarcyUnknown
 	if result.Location.CountryCode != "" {
-		acc = AccuracyCountry
-		con = ConvidenceCountry
+		acc = geobus.AccuracyCountry
 	}
 	if result.Location.Region != "" {
-		acc = AccuracyRegion
-		con = ConvidenceRegion
+		acc = geobus.AccuracyRegion
 	}
 	if result.Location.City != "" {
-		acc = AccuracyCity
-		con = ConvidenceCity
+		acc = geobus.AccuracyCity
 	}
 	if result.Location.ZipCode != "" {
-		acc = AccuracyZip
-		con = ConvidenceZip
+		acc = geobus.AccuracyZip
 	}
 
 	lat, err = strconv.ParseFloat(result.Location.Coordinates.Latitude, 64)
 	if err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("failed to parse latitude from API response: %w", err)
+		return 0, 0, 0, fmt.Errorf("failed to parse latitude from API response: %w", err)
 	}
 	lon, err = strconv.ParseFloat(result.Location.Coordinates.Longitude, 64)
 	if err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("failed to parse longitude from API response: %w", err)
+		return 0, 0, 0, fmt.Errorf("failed to parse longitude from API response: %w", err)
 	}
 
-	return lat, lon, acc, con, nil
+	return geobus.Truncate(lat, geobus.TruncPrecision),
+		geobus.Truncate(lon, geobus.TruncPrecision),
+		geobus.Truncate(acc, geobus.TruncPrecision), nil
 }

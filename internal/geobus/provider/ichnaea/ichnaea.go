@@ -78,16 +78,17 @@ func (p *GeolocationICHNAEAProvider) LookupStream(ctx context.Context, key strin
 			default:
 			}
 
-			lat, lon, alt, acc, con, err := p.locate(ctx)
+			lat, lon, acc, err := p.locate(ctx)
 			if err != nil {
 				time.Sleep(p.period)
 				continue
 			}
+			coord := geobus.Coordinate{Lat: lat, Lon: lon, Acc: acc}
 
 			// Only emit if values changed or it's the first read
-			if state.HasChanged(lat, lon, alt, acc) {
-				state.Update(lat, lon, alt, acc)
-				r := p.createResult(key, lat, lon, alt, acc, con)
+			if state.HasChanged(coord) {
+				state.Update(coord)
+				r := p.createResult(key, coord)
 
 				select {
 				case <-ctx.Done():
@@ -107,14 +108,12 @@ func (p *GeolocationICHNAEAProvider) LookupStream(ctx context.Context, key strin
 }
 
 // createResult composes and returns a Result using provided geolocation data and metadata.
-func (p *GeolocationICHNAEAProvider) createResult(key string, lat, lon, alt, acc, con float64) geobus.Result {
+func (p *GeolocationICHNAEAProvider) createResult(key string, coord geobus.Coordinate) geobus.Result {
 	return geobus.Result{
 		Key:            key,
-		Lat:            lat,
-		Lon:            lon,
-		Alt:            alt,
-		AccuracyMeters: acc,
-		Confidence:     con,
+		Lat:            coord.Lat,
+		Lon:            coord.Lon,
+		AccuracyMeters: coord.Acc,
 		Source:         p.name,
 		At:             time.Now(),
 		TTL:            p.ttl,
@@ -159,13 +158,13 @@ func (p *GeolocationICHNAEAProvider) wifiList() ([]WirelessNetwork, error) {
 	return list, nil
 }
 
-func (p *GeolocationICHNAEAProvider) locate(ctx context.Context) (lat, lon, alt, acc, con float64, err error) {
+func (p *GeolocationICHNAEAProvider) locate(ctx context.Context) (lat, lon, acc float64, err error) {
 	wifiList, err := p.wifiList()
 	if err != nil {
-		return 0, 0, 0, 0, 0, fmt.Errorf("failed to retrieve wifi list: %w", err)
+		return 0, 0, 0, fmt.Errorf("failed to retrieve wifi list: %w", err)
 	}
 	if len(wifiList) == 0 {
-		return 0, 0, 0, 0, 0, nil
+		return 0, 0, 0, nil
 	}
 
 	type request struct {
@@ -178,7 +177,7 @@ func (p *GeolocationICHNAEAProvider) locate(ctx context.Context) (lat, lon, alt,
 	}
 	bodyBuffer := bytes.NewBuffer(nil)
 	if err = json.NewEncoder(bodyBuffer).Encode(req); err != nil {
-		return 0, 0, 0, 0, 0, fmt.Errorf("failed to encode wifi list to JSON: %w", err)
+		return 0, 0, 0, fmt.Errorf("failed to encode wifi list to JSON: %w", err)
 	}
 
 	ctxHttp, cancelHttp := context.WithTimeout(ctx, LookupTimeout)
@@ -186,8 +185,10 @@ func (p *GeolocationICHNAEAProvider) locate(ctx context.Context) (lat, lon, alt,
 	result := new(APIResult)
 	if _, err = p.http.Post(ctxHttp, APIEndpoint, result, bodyBuffer,
 		map[string]string{"Content-Type": "application/json"}); err != nil {
-		return 0, 0, 0, 0, 0, fmt.Errorf("failed to get geolocation data from API: %w", err)
+		return 0, 0, 0, fmt.Errorf("failed to get geolocation data from API: %w", err)
 	}
 
-	return result.Location.Latitude, result.Location.Longitude, 0, result.Accuracy, con, nil
+	return geobus.Truncate(result.Location.Latitude, geobus.TruncPrecision),
+		geobus.Truncate(result.Location.Longitude, geobus.TruncPrecision),
+		geobus.Truncate(result.Accuracy, geobus.TruncPrecision), nil
 }
