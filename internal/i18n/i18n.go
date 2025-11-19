@@ -18,7 +18,7 @@ import (
 var locales embed.FS
 
 func New(loc string) (*spreak.Localizer, error) {
-	var tag language.Tag
+	tag := language.Make(loc)
 	var err error
 	if loc == "" {
 		tag, err = locale.Detect()
