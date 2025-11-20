@@ -27,6 +27,7 @@ import (
 	"github.com/wneessen/waybar-weather/internal/geobus/provider/gpsd"
 	"github.com/wneessen/waybar-weather/internal/geobus/provider/ichnaea"
 	"github.com/wneessen/waybar-weather/internal/geocode"
+	"github.com/wneessen/waybar-weather/internal/geocode/provider/opencage"
 	nominatim "github.com/wneessen/waybar-weather/internal/geocode/provider/osm-nominatim"
 	"github.com/wneessen/waybar-weather/internal/http"
 	"github.com/wneessen/waybar-weather/internal/logger"
@@ -90,11 +91,16 @@ func New(conf *config.Config, log *logger.Logger, t *spreak.Localizer) (*Service
 	}
 
 	var geocoder geocode.Geocoder
-	switch strings.ToLower(conf.GeoCoder.Type) {
+	switch strings.ToLower(conf.GeoCoder.Provider) {
 	case "nominatim":
 		geocoder = nominatim.New(http.New(log), t.Language())
+	case "opencage":
+		if conf.GeoCoder.APIKey == "" {
+			return nil, fmt.Errorf("opencage geocoder requires an API key")
+		}
+		geocoder = opencage.New(http.New(log), t.Language(), conf.GeoCoder.APIKey)
 	default:
-		return nil, fmt.Errorf("unsupported geocoder type: %s", conf.GeoCoder.Type)
+		return nil, fmt.Errorf("unsupported geocoder type: %s", conf.GeoCoder.Provider)
 	}
 
 	service := &Service{
